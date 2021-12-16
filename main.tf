@@ -1,12 +1,13 @@
 ## vars, prodiver and backend
 
 locals {
-  availability_zone = "eu-west-3"
+  region            = "eu-west-3"
+  availability_zone = "${local.region}a"
 }
 
 provider "aws" {
   profile = "default"
-  region  = local.availability_zone
+  region  = local.region
 }
 
 terraform {
@@ -39,8 +40,8 @@ data "aws_ami" "ubuntu" {
 
 # create app instance
 resource "aws_instance" "app" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t2.micro"
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t2.micro"
 }
 
 # create app storage
@@ -59,12 +60,21 @@ resource "aws_volume_attachment" "ebs_app" {
 
 
 ## Aurora-MariaDB instance
-resource "aws_db_instance" "db" {
-  allocated_storage = 1
-  engine            = "aurora"
-  instance_class    = "db.t2.micro"
-  username          = var.db_username
-  password          = var.db_password
+
+# create db cluster
+resource "aws_rds_cluster" "db_cluster" {
+  master_username     = var.db_username
+  master_password     = var.db_password
+  skip_final_snapshot = true
+}
+
+# create db instance
+resource "aws_rds_cluster_instance" "db_instance" {
+  count              = 1
+  cluster_identifier = aws_rds_cluster.db_cluster.id
+  instance_class     = "db.r5.large"
+  engine             = aws_rds_cluster.db_cluster.engine
+  engine_version     = aws_rds_cluster.db_cluster.engine_version
 }
 
 ## SQS queue
